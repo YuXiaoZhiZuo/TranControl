@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模块化无人运输车控制总枢</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Orbitron', 'Arial', sans-serif;
+        }
+        
+        @font-face {
+            font-family: 'Orbitron';
+            src: url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&display=swap');
+        }
+        
+        body {
+            background-color: #0a0a1a;
+            color: #e0e0ff;
+            height: 100vh;
+            overflow: hidden;
+            background-image: 
+                radial-gradient(circle at 20% 30%, rgba(30, 144, 255, 0.1) 0%, transparent 30%),
+                radial-gradient(circle at 80% 70%, rgba(138, 43, 226, 0.1) 0%, transparent 30%);
+        }
+        
+        /* 通用界面样式 */
+        .screen {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.5s ease;
+            padding: 20px;
+            background-color: rgba(10, 10, 26, 0.9);
+        }
+        
+        /* 开始界面 */
+        #start-screen {
+            background: radial-gradient(circle at center, #0a0a2a 0%, #000010 100%);
+            color: #e0e0ff;
+            z-index: 10;
+        }
+        
+        .logo {
+            font-size: 3rem;
+            margin-bottom: 2rem;
+            text-align: center;
+            text-shadow: 0 0 10px #6e8efb, 0 0 20px #a777e3;
+            letter-spacing: 2px;
+            animation: pulse 2s infinite alternate;
+        }
+        
+        @keyframes pulse {
+            from { text-shadow: 0 0 10px #6e8efb, 0 0 20px #a777e3; }
+            to { text-shadow: 0 0 15px #6e8efb, 0 0 30px #a777e3, 0 0 40px #4b0082; }
+        }
+        
+        .btn {
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #6e8efb, #a777e3);
+            color: white;
+            border: none;
+            border-radius: 30px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            margin: 10px;
+            transition: all 0.3s;
+            box-shadow: 0 0 15px rgba(110, 142, 251, 0.5);
+            position: relative;
+            overflow: hidden;
+            z-index: 1;
+        }
+        
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 0 20px rgba(110, 142, 251, 0.8);
+        }
+        
+        .btn::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0));
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: -1;
+        }
+        
+        .btn:hover::after {
+            opacity: 1;
+        }
+        
+        /* 加载动画 */
+        .auth-loader {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+        }
+        
+        .loader {
+            width: 60px;
+            height: 60px;
+            border: 5px solid rgba(110, 142, 251, 0.2);
+            border-radius: 50%;
+            border-top-color: #6e8efb;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+        
+        @keyframes spin {
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loader-text {
+            color: #a777e3;
+            font-size: 1rem;
+            text-align: center;
+        }
+        
+        /* 小车选择界面 */
+        #selection-screen {
+            display: none;
+            background: rgba(10, 10, 26, 0.95);
+            backdrop-filter: blur(5px);
+            z-index: 5;
+        }
+        
+        .selection-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            max-width: 1200px;
+            margin-bottom: 20px;
+        }
+        
+        .global-stats {
+            display: flex;
+            gap: 20px;
+            font-size: 0.9rem;
+            color: #a777e3;
+        }
+        
+        .stat-item {
+            display: flex;
+            align-items: center;
+        }
+        
+        .stat-icon {
+            margin-right: 5px;
+            font-size: 1.2rem;
+        }
+        
+        .car-list-container {
+            width: 100%;
+            max-width: 1200px;
+            height: 70vh;
+            background: rgba(20, 20, 40, 0.7);
+            border-radius: 15px;
+            border: 1px solid rgba(110, 142, 251, 0.3);
+            box-shadow: 0 0 20px rgba(110, 142, 251, 0.2);
+            overflow-y: auto;
+            padding: 15px;
+        }
+        
+        .car-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+        }
+        
+        .car-item {
+            background: rgba(30, 30, 60, 0.7);
+            border-radius: 10px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid rgba(110, 142, 251, 0.2);
+            transition: all 0.3s;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .car-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(110, 142, 251, 0.3);
+            border-color: rgba(110, 142, 251, 0.5);
+        }
+        
+        .car-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, #6e8efb, #a777e3);
+        }
+        
+        .car-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .car-icon {
+            font-size: 2rem;
+            margin-right: 10px;
+        }
+        
+        .car-name {
+            font-weight: bold;
+            font-size: 1.2rem;
+            color: #e0e0ff;
+        }
+        
+        .car-status {
+            font-size: 0.8rem;
+            padding: 3px 8px;
+            border-radius: 10px;
+            background: rgba(0, 255, 0, 0.2);
+            color: #0f0;
+        }
+        
+        .car-status.offline {
+            background: rgba(255, 0, 0, 0.2);
+            color: #f00;
+        }
+        
+        .car-details {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            font-size: 0.9rem;
+            color: #b0b0ff;
+        }
+        
+        .car-detail {
+            display: flex;
+            align-items: center;
+        }
+        
+        .detail-icon {
+            margin-right: 5px;
+            color: #a777e3;
+            width: 20px;
+            text-align: center;
+        }
+        
+        /* 控制界面 */
+        #control-screen {
+            display: none;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto 1fr;
+            gap: 20px;
+            padding: 20px;
+            max-width: 1500px;
+            background: rgba(10, 10, 26, 0.95);
+            backdrop-filter: blur(5px);
+        }
+        
+        .header {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            padding: 10px 20px;
+            background: rgba(20, 20, 40, 0.7);
+            border-radius: 10px;
+            border: 1px solid rgba(110, 142, 251, 0.3);
+        }
+        
+        .video-feed {
+            background-color: #111;
+            border-radius: 10px;
+            width: 100%;
+            height: 500px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(110, 142, 251, 0.3);
+            box-shadow: 0 0 20px rgba(110, 142, 251, 0.1);
+        }
+        
+        .video-placeholder {
+            width: 100%;
+            height: 100%;
+            background: 
+                linear-gradient(45deg, #111 25%, #222 25%, #222 50%, #111 50%, #111 75%, #222 75%);
+            background-size: 20px 20px;
+            animation: move 2s linear infinite;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            color: #6e8efb;
+        }
+        
+        .video-placeholder::before {
+            content: '视频信号待接入';
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+        
+        @keyframes move {
+            0% { background-position: 0 0; }
+            100% { background-position: 20px 20px; }
+        }
+        
+        .control-panel {
+            background: rgba(20, 20, 40, 0.7);
+            border-radius: 10px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border: 1px solid rgba(110, 142, 251, 0.3);
+            box-shadow: 0 0 20px rgba(110, 142, 251, 0.1);
+        }
+        
+        .control-mode {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+            background: rgba(30, 30, 60, 0.7);
+            border-radius: 20px;
+            padding: 5px;
+            border: 1px solid rgba(110, 142, 251, 0.3);
+        }
+        
+        .mode-btn {
+            padding: 8px 20px;
+            border: none;
+            background: none;
+            color: #b0b0ff;
+            cursor: pointer;
+            border-radius: 15px;
+            transition: all 0.3s;
+            font-size: 0.9rem;
+        }
+        
+        .mode-btn.active {
+            background: rgba(110, 142, 251, 0.3);
+            color: white;
+            box-shadow: 0 0 10px rgba(110, 142, 251, 0.3);
+        }
+        
+        .joystick-container {
+            width: 300px;
+            height: 300px;
+            background: rgba(30, 30, 60, 0.7);
+            border-radius: 50%;
+            position: relative;
+            margin: 20px 0;
+            touch-action: none;
+            border: 1px solid rgba(110, 142, 251, 0.3);
+            box-shadow: 
+                inset 0 0 10px rgba(0,0,0,0.5),
+                0 0 20px rgba(110, 142, 251, 0.2);
+        }
+        
+        .joystick {
+            width: 80px;
+            height: 80px;
+            background: radial-gradient(circle, #6e8efb 0%, #4b5d9b 100%);
+            border-radius: 50%;
+            position: absolute;
+            top: 110px;
+            left: 110px;
+            cursor: move;
+            box-shadow: 
+                0 0 10px rgba(110, 142, 251, 0.5),
+                inset 0 0 5px rgba(255,255,255,0.3);
+            transition: transform 0.1s;
+        }
+        
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 20px;
+            gap: 15px;
+        }
+        
+        .control-btn {
+            width: 100px;
+            height: 100px;
+            border-radius: 15px;
+            background: rgba(30, 30, 60, 0.7);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid rgba(110, 142, 251, 0.3);
+            color: #e0e0ff;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .control-btn:hover {
+            background: rgba(50, 50, 90, 0.7);
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(110, 142, 251, 0.3);
+        }
+        
+        .control-btn.active {
+            background: rgba(110, 142, 251, 0.3);
+            box-shadow: 0 0 15px rgba(110, 142, 251, 0.5);
+            color: white;
+        }
+        
+        .control-btn.active::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, #6e8efb, #a777e3);
+        }
+        
+        .control-icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            text-shadow: 0 0 5px rgba(110, 142, 251, 0.5);
+        }
+        
+        .back-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(110, 142, 251, 0.2);
+            border: 1px solid rgba(110, 142, 251, 0.3);
+            font-size: 1.2rem;
+            cursor: pointer;
+            color: #e0e0ff;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            z-index: 2;
+        }
+        
+        .back-btn:hover {
+            background: rgba(110, 142, 251, 0.3);
+            transform: translateX(-3px);
+        }
+        
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(20, 20, 40, 0.5);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: rgba(110, 142, 251, 0.5);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(110, 142, 251, 0.7);
+        }
+        
+        /* 连接状态指示器 */
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+            background-color: #0f0;
+            box-shadow: 0 0 5px #0f0;
+            animation: pulse 1.5s infinite;
+        }
+        
+        .status-indicator.offline {
+            background-color: #f00;
+            box-shadow: 0 0 5px #f00;
+        }
+    </style>
+</head>
+<body>
+    <!-- 开始界面 -->
+    <div class="screen" id="start-screen">
+        <h1 class="logo">模块化无人运输车控制总枢</h1>
+        <button class="btn" id="start-btn">身份验证</button>
+        <div class="auth-loader" id="auth-loader">
+            <div class="loader"></div>
+            <div class="loader-text">验证中... 正在接入全球运输网络</div>
+        </div>
+    </div>
+    
+    <!-- 小车选择界面 -->
+    <div class="screen" id="selection-screen">
+        <button class="back-btn" id="back-to-start">←</button>
+        <div class="selection-header">
+            <h1>全球运输车网络</h1>
+            <div class="global-stats">
+                <div class="stat-item">
+                    <span class="stat-icon">🌐</span>
+                    <span>节点: <span id="total-nodes">128</span></span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-icon">🟢</span>
+                    <span>在线: <span id="online-nodes">112</span></span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-icon">🔴</span>
+                    <span>离线: <span id="offline-nodes">16</span></span>
+                </div>
+            </div>
+        </div>
+        <div class="car-list-container">
+            <div class="car-list" id="car-list">
+                <!-- 车辆列表将通过JS动态生成 -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- 控制界面 -->
+    <div class="screen" id="control-screen">
+        <button class="back-btn" id="back-to-selection">←</button>
+        <div class="header">
+            <h1 id="selected-car-name">探索者1号</h1>
+            <div>状态: <span class="status-indicator"></span><span id="connection-status">已连接 (自动模式)</span></div>
+        </div>
+        
+        <div class="video-feed">
+            <div class="video-placeholder"></div>
+        </div>
+        
+        <div class="control-panel">
+            <div class="control-mode">
+                <button class="mode-btn active" id="auto-mode">自动控制</button>
+                <button class="mode-btn" id="manual-mode">手动控制</button>
+            </div>
+            <h2>手动控制器</h2>
+            <div class="joystick-container" id="joystick-container">
+                <div class="joystick" id="joystick"></div>
+            </div>
+            <div class="controls">
+                <div class="control-btn" id="laser-btn">
+                    <div class="control-icon">🔦</div>
+                    <div>激光测距</div>
+                </div>
+                <div class="control-btn" id="camera-btn">
+                    <div class="control-icon">📷</div>
+                    <div>摄像头</div>
+                </div>
+                <div class="control-btn" id="light-btn">
+                    <div class="control-icon">💡</div>
+                    <div>灯光</div>
+                </div>
+                <div class="control-btn" id="horn-btn">
+                    <div class="control-icon">📡</div>
+                    <div>超声波雷达</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 模拟全球车辆数据
+        const vehicleTypes = ['探索者', '越野者', '极速', '重型', '运输者', '侦察者', '工程型', '医疗型'];
+        const vehicleModels = ['X', 'S', 'Pro', 'Max', 'Lite', 'Plus', 'Ultra', 'Mini'];
+        const locations = [
+            '北京基地', '上海枢纽', '广州中心', '深圳节点', 
+            '东京站', '新加坡站', '柏林中心', '伦敦枢纽', 
+            '纽约节点', '洛杉矶站', '悉尼中心', '迪拜枢纽'
+        ];
+        
+        // 生成随机车辆数据
+        function generateRandomVehicles(count) {
+            const vehicles = [];
+            for (let i = 0; i < count; i++) {
+                const type = vehicleTypes[Math.floor(Math.random() * vehicleTypes.length)];
+                const model = vehicleModels[Math.floor(Math.random() * vehicleModels.length)];
+                const location = locations[Math.floor(Math.random() * locations.length)];
+                const battery = Math.floor(Math.random() * 80) + 20;
+                const speed = Math.floor(Math.random() * 60) + 10;
+                const isOnline = Math.random() > 0.1; // 10%几率离线
+                
+                vehicles.push({
+                    id: `VH${Math.floor(1000 + Math.random() * 9000)}`,
+                    name: `${type}${model}`,
+                    type: type,
+                    model: model,
+                    location: location,
+                    battery: battery,
+                    speed: isOnline ? speed : 0,
+                    status: isOnline ? 'online' : 'offline',
+                    icon: getVehicleIcon(type),
+                    lastUpdate: getRandomUpdateTime()
+                });
+            }
+            return vehicles;
+        }
+        
+        function getVehicleIcon(type) {
+            const icons = {
+                '探索者': '🚗',
+                '越野者': '🚙',
+                '极速': '🏎️',
+                '重型': '🚜',
+                '运输者': '🚛',
+                '侦察者': '🚓',
+                '工程型': '🚒',
+                '医疗型': '🚑'
+            };
+            return icons[type] || '🚕';
+        }
+        
+        function getRandomUpdateTime() {
+            const minutes = Math.floor(Math.random() * 60);
+            return `${minutes}分钟前`;
+        }
+        
+        // 渲染车辆列表
+        function renderVehicleList(vehicles) {
+            const carList = document.getElementById('car-list');
+            carList.innerHTML = '';
+            
+            const onlineVehicles = vehicles.filter(v => v.status === 'online');
+            const offlineVehicles = vehicles.filter(v => v.status === 'offline');
+            
+            // 更新统计信息
+            document.getElementById('total-nodes').textContent = vehicles.length;
+            document.getElementById('online-nodes').textContent = onlineVehicles.length;
+            document.getElementById('offline-nodes').textContent = offlineVehicles.length;
+            
+            // 先显示在线车辆
+            onlineVehicles.forEach(vehicle => {
+                carList.appendChild(createVehicleCard(vehicle));
+            });
+            
+            // 再显示离线车辆
+            offlineVehicles.forEach(vehicle => {
+                carList.appendChild(createVehicleCard(vehicle));
+            });
+        }
+        
+        function createVehicleCard(vehicle) {
+            const card = document.createElement('div');
+            card.className = 'car-item';
+            card.dataset.id = vehicle.id;
+            
+            card.innerHTML = `
+                <div class="car-header">
+                    <div style="display: flex; align-items: center;">
+                        <div class="car-icon">${vehicle.icon}</div>
+                        <div class="car-name">${vehicle.name}</div>
+                    </div>
+                    <div class="car-status ${vehicle.status === 'offline' ? 'offline' : ''}">
+                        ${vehicle.status === 'online' ? '在线' : '离线'}
+                    </div>
+                </div>
+                <div class="car-details">
+                    <div class="car-detail">
+                        <span class="detail-icon">🆔</span>
+                        <span>${vehicle.id}</span>
+                    </div>
+                    <div class="car-detail">
+                        <span class="detail-icon">📍</span>
+                        <span>${vehicle.location}</span>
+                    </div>
+                    <div class="car-detail">
+                        <span class="detail-icon">🔋</span>
+                        <span>电量: ${vehicle.battery}%</span>
+                    </div>
+                    <div class="car-detail">
+                        <span class="detail-icon">⏱️</span>
+                        <span>${vehicle.lastUpdate}</span>
+                    </div>
+                </div>
+            `;
+            
+            if (vehicle.status === 'online') {
+                card.addEventListener('click', () => selectVehicle(vehicle));
+            }
+            
+            return card;
+        }
+        
+        function selectVehicle(vehicle) {
+            document.getElementById('selected-car-name').textContent = `${vehicle.name} (${vehicle.id})`;
+            document.getElementById('selection-screen').style.display = 'none';
+            document.getElementById('control-screen').style.display = 'grid';
+            
+            // 更新状态指示器
+            const statusIndicator = document.querySelector('.status-indicator');
+            statusIndicator.className = 'status-indicator';
+            
+            // 重置摄像头状态
+            const cameraBtn = document.getElementById('camera-btn');
+            cameraBtn.classList.remove('active');
+            
+            // 重置视频窗口
+            const videoPlaceholder = document.querySelector('.video-placeholder');
+            videoPlaceholder.innerHTML = '';
+            videoPlaceholder.style.background = '#111';
+            videoPlaceholder.innerHTML = '<div style="text-align: center;">视频信号待接入</div>';
+            
+            // 默认自动模式
+            switchMode('auto');
+        }
+        
+        // 模式切换
+        function switchMode(mode) {
+            const autoBtn = document.getElementById('auto-mode');
+            const manualBtn = document.getElementById('manual-mode');
+            const joystickContainer = document.getElementById('joystick-container');
+            const connectionStatus = document.getElementById('connection-status');
+            
+            if (mode === 'auto') {
+                autoBtn.classList.add('active');
+                manualBtn.classList.remove('active');
+                joystickContainer.style.opacity = '0.5';
+                joystickContainer.style.pointerEvents = 'none';
+                connectionStatus.textContent = '已连接 (自动模式)';
+                console.log('切换到自动控制模式');
+            } else {
+                autoBtn.classList.remove('active');
+                manualBtn.classList.add('active');
+                joystickContainer.style.opacity = '1';
+                joystickContainer.style.pointerEvents = 'auto';
+                connectionStatus.textContent = '已连接 (手动模式)';
+                console.log('切换到手动控制模式');
+            }
+        }
+        
+        // 界面切换逻辑
+        document.getElementById('start-btn').addEventListener('click', function() {
+            this.style.display = 'none';
+            const loader = document.getElementById('auth-loader');
+            loader.style.display = 'flex';
+            
+            // 模拟身份验证过程
+            setTimeout(() => {
+                document.getElementById('start-screen').style.display = 'none';
+                document.getElementById('selection-screen').style.display = 'flex';
+                
+                // 生成并显示车辆列表
+                const vehicles = generateRandomVehicles(24);
+                renderVehicleList(vehicles);
+                
+                // 每30秒刷新一次车辆状态
+                setInterval(() => {
+                    const updatedVehicles = generateRandomVehicles(24);
+                    renderVehicleList(updatedVehicles);
+                }, 3000);
+            }, 2500);
+        });
+        
+        document.getElementById('back-to-start').addEventListener('click', function() {
+            document.getElementById('selection-screen').style.display = 'none';
+            document.getElementById('start-screen').style.display = 'flex';
+            document.getElementById('start-btn').style.display = 'block';
+            document.getElementById('auth-loader').style.display = 'none';
+        });
+        
+        document.getElementById('back-to-selection').addEventListener('click', function() {
+            document.getElementById('control-screen').style.display = 'none';
+            document.getElementById('selection-screen').style.display = 'flex';
+        });
+        
+        // 模式切换按钮事件
+        document.getElementById('auto-mode').addEventListener('click', function() {
+            switchMode('auto');
+        });
+        
+        document.getElementById('manual-mode').addEventListener('click', function() {
+            switchMode('manual');
+        });
+        
+        // 摇杆控制逻辑
+        const joystick = document.getElementById('joystick');
+        const joystickContainer = document.getElementById('joystick-container');
+        
+        let isDragging = false;
+        
+        joystick.addEventListener('mousedown', function(e) {
+            if (!document.getElementById('manual-mode').classList.contains('active')) return;
+            isDragging = true;
+            document.addEventListener('mousemove', moveJoystick);
+            document.addEventListener('mouseup', stopDragging);
+            e.preventDefault();
+        });
+        
+        joystick.addEventListener('touchstart', function(e) {
+            if (!document.getElementById('manual-mode').classList.contains('active')) return;
+            isDragging = true;
+            document.addEventListener('touchmove', moveJoystick);
+            document.addEventListener('touchend', stopDragging);
+            e.preventDefault();
+        });
+        
+        function moveJoystick(e) {
+            if (!isDragging) return;
+            
+            let clientX, clientY;
+            
+            if (e.type === 'mousemove') {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            } else {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            }
+            
+            const containerRect = joystickContainer.getBoundingClientRect();
+            const centerX = containerRect.left + containerRect.width / 2;
+            const centerY = containerRect.top + containerRect.height / 2;
+            
+            let deltaX = clientX - centerX;
+            let deltaY = clientY - centerY;
+            
+            // 限制摇杆在容器范围内
+            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+            const maxDistance = containerRect.width / 2 - joystick.offsetWidth / 2;
+            
+            if (distance > maxDistance) {
+                deltaX = deltaX * maxDistance / distance;
+                deltaY = deltaY * maxDistance / distance;
+            }
+            
+            joystick.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+            
+            // 计算方向
+            const angle = Math.atan2(deltaY, deltaX) * 180 / Math.PI;
+            const normalizedDistance = distance / maxDistance;
+            
+            // 这里可以添加控制小车移动的逻辑
+            console.log('手动控制指令:', {
+                direction: angle,
+                intensity: normalizedDistance,
+                x: deltaX / maxDistance,
+                y: deltaY / maxDistance
+            });
+        }
+        
+        function stopDragging() {
+            if (!isDragging) return;
+            isDragging = false;
+            joystick.style.transform = 'translate(0, 0)';
+            document.removeEventListener('mousemove', moveJoystick);
+            document.removeEventListener('touchmove', moveJoystick);
+            
+            // 摇杆复位时可以添加停止小车移动的逻辑
+            console.log('手动控制指令: 停止');
+        }
+        
+        // 功能按钮逻辑
+        const controlButtons = document.querySelectorAll('.control-btn');
+        controlButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                this.classList.toggle('active');
+                const buttonName = this.querySelector('div:last-child').textContent;
+                const isActive = this.classList.contains('active');
+                console.log(`${buttonName} ${isActive ? '开启' : '关闭'}`);
+                
+                // 模拟摄像头开启效果
+                if (this.id === 'camera-btn') {
+                    const videoPlaceholder = document.querySelector('.video-placeholder');
+                    if (isActive) {
+                        videoPlaceholder.innerHTML = `
+                            <div style="position: relative; width: 100%; height: 100%;">
+                                <div style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 5px; border-radius: 5px;">
+                                    ${document.getElementById('selected-car-name').textContent}
+                                </div>
+                                <div style="position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.5); color: white; padding: 5px; border-radius: 5px;">
+                                    🔋 ${Math.floor(Math.random() * 80) + 20}% | 🚀 ${Math.floor(Math.random() * 60) + 10}km/h
+                                </div>
+                                <div style="width: 100%; height: 100%; background: #111; display: flex; align-items: center; justify-content: center; color: #6e8efb;">
+                                    实时视频流 (模拟)
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        videoPlaceholder.innerHTML = '<div style="text-align: center;">视频信号已断开</div>';
+                        setTimeout(() => {
+                            videoPlaceholder.innerHTML = '<div style="text-align: center;">视频信号待接入</div>';
+                        }, 1500);
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
